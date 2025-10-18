@@ -1,0 +1,1209 @@
+import React, { useState, useEffect } from 'react';
+import { Plus, ChevronLeft, ChevronRight, Trash2, Edit, Folder, File, Home, ArrowLeft } from 'lucide-react';
+
+export default function FlashcardApp() {
+  const [folders, setFolders] = useState([
+    {
+      id: 'default',
+      name: 'My First Folder',
+      files: [
+        {
+          id: 'default-file',
+          name: 'Browser & OS Basics',
+          cards: [
+            { id: '1', question: 'What is a Browser?', answer: "A browser is a program that lets you visit websites on the internet. It's your gateway to the online world!" },
+            { id: '2', question: 'What are the 3 main browsers?', answer: 'Google Chrome, Microsoft Edge, and Apple Safari' },
+            { id: '3', question: "What is Google's browser called?", answer: 'Google Chrome' },
+            { id: '4', question: "What is Microsoft's browser called?", answer: 'Microsoft Edge' },
+            { id: '5', question: "What is Apple's browser called?", answer: 'Safari' },
+            { id: '6', question: 'What is an Operating System?', answer: 'An operating system is the main program that runs your computer or phone. It controls everything and lets all your apps work!' },
+            { id: '7', question: 'What are the main computer operating systems?', answer: 'Mac OS (only on Macs) and Windows' },
+            { id: '8', question: 'What are the main phone operating systems?', answer: 'iOS (only on iPhones) and Android' }
+          ],
+          archivedCards: []
+        }
+      ]
+    }
+  ]);
+  
+  const [archivedFolders, setArchivedFolders] = useState([]);
+  const [archivedFiles, setArchivedFiles] = useState([]);
+  const [showArchivedFolders, setShowArchivedFolders] = useState(false);
+  const [showArchivedFiles, setShowArchivedFiles] = useState(false);
+  
+  const [currentView, setCurrentView] = useState('home'); // 'home', 'folder', 'file'
+  const [selectedFolderId, setSelectedFolderId] = useState(null);
+  const [selectedFileId, setSelectedFileId] = useState(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [newQuestion, setNewQuestion] = useState('');
+  const [newAnswer, setNewAnswer] = useState('');
+  const [editingCardId, setEditingCardId] = useState(null);
+  const [bulkText, setBulkText] = useState('');
+  const [quizMode, setQuizMode] = useState(false);
+  const [quizCards, setQuizCards] = useState([]);
+  const [quizScore, setQuizScore] = useState(0);
+  const [quizAnswered, setQuizAnswered] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  const [quizComplete, setQuizComplete] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [selectedHours, setSelectedHours] = useState(0);
+  const [selectedMinutes, setSelectedMinutes] = useState(5);
+  const [selectedSeconds, setSelectedSeconds] = useState(0);
+  const [showFolderForm, setShowFolderForm] = useState(false);
+  const [showFileForm, setShowFileForm] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [newFileName, setNewFileName] = useState('');
+  const [renamingId, setRenamingId] = useState(null);
+  const [renamingType, setRenamingType] = useState(null); // 'folder' or 'file'
+  const [renameValue, setRenameValue] = useState('');
+
+  const getCurrentCards = () => {
+    if (!selectedFolderId || !selectedFileId) return [];
+    const folder = folders.find(f => f.id === selectedFolderId);
+    if (!folder) return [];
+    const file = folder.files.find(f => f.id === selectedFileId);
+    return file ? file.cards : [];
+  };
+
+  const updateCards = (newCards) => {
+    setFolders(folders.map(folder => {
+      if (folder.id === selectedFolderId) {
+        return {
+          ...folder,
+          files: folder.files.map(file => {
+            if (file.id === selectedFileId) {
+              return { ...file, cards: newCards };
+            }
+            return file;
+          })
+        };
+      }
+      return folder;
+    }));
+  };
+
+  const getArchivedCards = () => {
+    if (!selectedFolderId || !selectedFileId) return [];
+    const folder = folders.find(f => f.id === selectedFolderId);
+    if (!folder) return [];
+    const file = folder.files.find(f => f.id === selectedFileId);
+    return file ? file.archivedCards : [];
+  };
+
+  const updateArchivedCards = (newArchived) => {
+    setFolders(folders.map(folder => {
+      if (folder.id === selectedFolderId) {
+        return {
+          ...folder,
+          files: folder.files.map(file => {
+            if (file.id === selectedFileId) {
+              return { ...file, archivedCards: newArchived };
+            }
+            return file;
+          })
+        };
+      }
+      return folder;
+    }));
+  };
+
+  const cards = getCurrentCards();
+  const archivedCards = getArchivedCards();
+
+  useEffect(() => {
+    if (quizMode && timeRemaining > 0 && !quizComplete) {
+      const timer = setTimeout(() => {
+        setTimeRemaining(timeRemaining - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (quizMode && timeRemaining === 0 && !quizComplete) {
+      handleQuizEnd();
+    }
+  }, [quizMode, timeRemaining, quizComplete]);
+
+  const createFolder = () => {
+    if (newFolderName.trim()) {
+      const newFolder = {
+        id: Date.now().toString(),
+        name: newFolderName,
+        files: []
+      };
+      setFolders([...folders, newFolder]);
+      setNewFolderName('');
+      setShowFolderForm(false);
+    }
+  };
+
+  const createFile = () => {
+    if (newFileName.trim() && selectedFolderId) {
+      setFolders(folders.map(folder => {
+        if (folder.id === selectedFolderId) {
+          return {
+            ...folder,
+            files: [...folder.files, {
+              id: Date.now().toString(),
+              name: newFileName,
+              cards: [],
+              archivedCards: []
+            }]
+          };
+        }
+        return folder;
+      }));
+      setNewFileName('');
+      setShowFileForm(false);
+    }
+  };
+
+  const startRename = (id, type, currentName) => {
+    setRenamingId(id);
+    setRenamingType(type);
+    setRenameValue(currentName);
+  };
+
+  const saveRename = () => {
+    if (renameValue.trim()) {
+      if (renamingType === 'folder') {
+        setFolders(folders.map(f => f.id === renamingId ? { ...f, name: renameValue } : f));
+      } else if (renamingType === 'file') {
+        setFolders(folders.map(folder => {
+          if (folder.id === selectedFolderId) {
+            return {
+              ...folder,
+              files: folder.files.map(file => 
+                file.id === renamingId ? { ...file, name: renameValue } : file
+              )
+            };
+          }
+          return folder;
+        }));
+      }
+    }
+    setRenamingId(null);
+    setRenamingType(null);
+    setRenameValue('');
+  };
+
+  const deleteFolder = (folderId) => {
+    if (window.confirm('Archive this folder and all its files? You can recover it within 24 hours.')) {
+      const folderToArchive = folders.find(f => f.id === folderId);
+      setArchivedFolders([...archivedFolders, { ...folderToArchive, deletedAt: Date.now() }]);
+      setFolders(folders.filter(f => f.id !== folderId));
+    }
+  };
+
+  const deleteFile = (fileId) => {
+    if (window.confirm('Archive this file and all its cards? You can recover it within 24 hours.')) {
+      const folder = folders.find(f => f.id === selectedFolderId);
+      const fileToArchive = folder.files.find(f => f.id === fileId);
+      setArchivedFiles([...archivedFiles, { ...fileToArchive, folderId: selectedFolderId, deletedAt: Date.now() }]);
+      setFolders(folders.map(folder => {
+        if (folder.id === selectedFolderId) {
+          return {
+            ...folder,
+            files: folder.files.filter(f => f.id !== fileId)
+          };
+        }
+        return folder;
+      }));
+      if (selectedFileId === fileId) {
+        setCurrentView('folder');
+        setSelectedFileId(null);
+      }
+    }
+  };
+
+  const recoverFolder = (index) => {
+    const validFolders = getValidArchivedFolders();
+    const folderToRecover = validFolders[index];
+    setFolders([...folders, folderToRecover]);
+    setArchivedFolders(archivedFolders.filter(f => f !== folderToRecover));
+  };
+
+  const recoverFile = (index) => {
+    const validFiles = getValidArchivedFiles();
+    const fileToRecover = validFiles[index];
+    setFolders(folders.map(folder => {
+      if (folder.id === fileToRecover.folderId) {
+        return {
+          ...folder,
+          files: [...folder.files, { ...fileToRecover, deletedAt: undefined, folderId: undefined }]
+        };
+      }
+      return folder;
+    }));
+    setArchivedFiles(archivedFiles.filter(f => f !== fileToRecover));
+  };
+
+  const getValidArchivedFolders = () => {
+    const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
+    return archivedFolders.filter(folder => folder.deletedAt > twentyFourHoursAgo);
+  };
+
+  const getValidArchivedFiles = () => {
+    const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
+    return archivedFiles.filter(file => file.deletedAt > twentyFourHoursAgo);
+  };
+
+  const showQuizTimePicker = () => {
+    setShowTimePicker(true);
+    setShowArchived(false);
+  };
+
+  const startQuiz = () => {
+    const shuffled = [...cards].sort(() => Math.random() - 0.5);
+    setQuizCards(shuffled);
+    setQuizMode(true);
+    setQuizScore(0);
+    setCurrentIndex(0);
+    setIsFlipped(false);
+    setQuizAnswered(false);
+    setQuizComplete(false);
+    setShowTimePicker(false);
+    const totalSeconds = (selectedHours * 3600) + (selectedMinutes * 60) + selectedSeconds;
+    setTimeRemaining(totalSeconds);
+  };
+
+  const exitQuiz = () => {
+    setQuizMode(false);
+    setQuizComplete(false);
+    setCurrentIndex(0);
+    setIsFlipped(false);
+    setQuizAnswered(false);
+    setShowTimePicker(false);
+  };
+
+  const handleQuizAnswer = (correct) => {
+    if (correct === 'full') {
+      setQuizScore(quizScore + 1);
+    } else if (correct === 'partial') {
+      setQuizScore(quizScore + 0.5);
+    }
+    
+    if (currentIndex < quizCards.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+      setIsFlipped(false);
+      setQuizAnswered(false);
+    } else {
+      handleQuizEnd();
+    }
+  };
+
+  const handleQuizEnd = () => {
+    setQuizComplete(true);
+  };
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleFlip = () => {
+    setIsFlipped(!isFlipped);
+  };
+
+  const handleNext = () => {
+    if (cards.length > 1) {
+      setIsFlipped(false);
+      setCurrentIndex((prev) => (prev + 1) % cards.length);
+    }
+  };
+
+  const handlePrevious = () => {
+    if (cards.length > 1) {
+      setIsFlipped(false);
+      setCurrentIndex((prev) => (prev - 1 + cards.length) % cards.length);
+    }
+  };
+
+  const handleAddCard = () => {
+    if (newQuestion.trim() && newAnswer.trim()) {
+      const newCard = {
+        id: Date.now().toString(),
+        question: newQuestion,
+        answer: newAnswer
+      };
+      updateCards([...cards, newCard]);
+      setNewQuestion('');
+      setNewAnswer('');
+      setShowAddForm(false);
+    }
+  };
+
+  const startEditCard = () => {
+    const card = cards[currentIndex];
+    setEditingCardId(card.id);
+    setNewQuestion(card.question);
+    setNewAnswer(card.answer);
+    setShowEditForm(true);
+  };
+
+  const handleEditCard = () => {
+    if (newQuestion.trim() && newAnswer.trim()) {
+      updateCards(cards.map(card => 
+        card.id === editingCardId 
+          ? { ...card, question: newQuestion, answer: newAnswer }
+          : card
+      ));
+      setNewQuestion('');
+      setNewAnswer('');
+      setEditingCardId(null);
+      setShowEditForm(false);
+    }
+  };
+
+  const handleDeleteCard = () => {
+    if (cards.length > 0) {
+      const deletedCard = cards[currentIndex];
+      const newCards = cards.filter((_, index) => index !== currentIndex);
+      updateCards(newCards);
+      updateArchivedCards([...archivedCards, { ...deletedCard, deletedAt: Date.now() }]);
+      if (newCards.length > 0) {
+        setCurrentIndex(Math.min(currentIndex, newCards.length - 1));
+      } else {
+        setCurrentIndex(0);
+      }
+      setIsFlipped(false);
+    }
+  };
+
+  const handleDeleteAll = () => {
+    if (window.confirm('Are you sure you want to delete all flashcards? They will be archived for 24 hours.')) {
+      const timestamp = Date.now();
+      const archived = cards.map(card => ({ ...card, deletedAt: timestamp }));
+      updateArchivedCards([...archivedCards, ...archived]);
+      updateCards([]);
+      setCurrentIndex(0);
+      setIsFlipped(false);
+    }
+  };
+
+  const handleBulkImport = () => {
+    const lines = bulkText.split('\n');
+    const newCards = [];
+    let currentQuestion = '';
+    let currentAnswer = '';
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      if (line.startsWith('Q:')) {
+        currentQuestion = line.substring(2).trim();
+      } else if (line.startsWith('A:')) {
+        currentAnswer = line.substring(2).trim();
+        if (currentQuestion && currentAnswer) {
+          newCards.push({ 
+            id: Date.now().toString() + '-' + i,
+            question: currentQuestion, 
+            answer: currentAnswer 
+          });
+          currentQuestion = '';
+          currentAnswer = '';
+        }
+      }
+    }
+    
+    if (newCards.length > 0) {
+      updateCards([...cards, ...newCards]);
+      setBulkText('');
+      setShowBulkImport(false);
+    } else {
+      alert('No valid cards found. Make sure to use the format:\nQ: Your question\nA: Your answer');
+    }
+  };
+
+  const handleRecover = (index) => {
+    const validCards = getValidArchivedCards();
+    const cardToRecover = validCards[index];
+    updateCards([...cards, { ...cardToRecover, id: Date.now().toString() }]);
+    updateArchivedCards(archivedCards.filter(card => card !== cardToRecover));
+  };
+
+  const getValidArchivedCards = () => {
+    const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
+    return archivedCards.filter(card => card.deletedAt > twentyFourHoursAgo);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8 relative overflow-hidden">
+      <div className="absolute inset-0 opacity-30 pointer-events-none">
+        <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+        </svg>
+      </div>
+      
+      <div className="max-w-4xl mx-auto relative z-10">
+        <h1 className="text-4xl font-bold text-center text-indigo-900 mb-4">
+          Flashcard Study Tool
+        </h1>
+
+        {currentView !== 'home' && (
+          <button
+            onClick={() => {
+              if (currentView === 'file') {
+                setCurrentView('folder');
+                setSelectedFileId(null);
+                setShowArchivedFiles(false);
+              } else if (currentView === 'folder') {
+                setCurrentView('home');
+                setSelectedFolderId(null);
+                setShowArchivedFolders(false);
+              }
+            }}
+            className="mb-4 flex items-center gap-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+          >
+            <ArrowLeft size={20} />
+            Back
+          </button>
+        )}
+
+        {currentView === 'home' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-800">My Folders</h2>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowArchivedFolders(!showArchivedFolders)}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+                >
+                  View Archived ({getValidArchivedFolders().length})
+                </button>
+                <button
+                  onClick={() => setShowFolderForm(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  <Plus size={20} />
+                  New Folder
+                </button>
+              </div>
+            </div>
+
+            {showArchivedFolders && (
+              <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+                <h3 className="text-xl font-semibold text-gray-800 mb-4">
+                  Archived Folders (Last 24 Hours)
+                </h3>
+                {getValidArchivedFolders().length === 0 ? (
+                  <p className="text-gray-500 text-center">No archived folders</p>
+                ) : (
+                  <div className="space-y-3">
+                    {getValidArchivedFolders().map((folder, index) => (
+                      <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-800">{folder.name}</div>
+                          <div className="text-sm text-gray-600">{folder.files.length} file(s)</div>
+                        </div>
+                        <button
+                          onClick={() => recoverFolder(index)}
+                          className="ml-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm"
+                        >
+                          Recover
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {showFolderForm && (
+              <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+                <h3 className="text-xl font-semibold mb-4">Create New Folder</h3>
+                <input
+                  type="text"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  placeholder="Folder name..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4"
+                />
+                <div className="flex gap-3">
+                  <button onClick={createFolder} className="flex-1 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                    Create
+                  </button>
+                  <button onClick={() => { setShowFolderForm(false); setNewFolderName(''); }} className="flex-1 px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {folders.map(folder => (
+                <div key={folder.id} className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
+                  {renamingId === folder.id && renamingType === 'folder' ? (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        className="flex-1 px-3 py-1 border border-gray-300 rounded"
+                        autoFocus
+                      />
+                      <button onClick={saveRename} className="px-3 py-1 bg-green-500 text-white rounded">Save</button>
+                      <button onClick={() => setRenamingId(null)} className="px-3 py-1 bg-gray-300 rounded">Cancel</button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <Folder size={32} className="text-indigo-600" />
+                          <h3 className="text-xl font-semibold text-gray-800">{folder.name}</h3>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => startRename(folder.id, 'folder', folder.name)}
+                            className="p-2 text-gray-600 hover:bg-gray-100 rounded"
+                          >
+                            <Edit size={18} />
+                          </button>
+                          <button
+                            onClick={() => deleteFolder(folder.id)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-gray-600 mb-4">{folder.files.length} file(s)</p>
+                      <button
+                        onClick={() => {
+                          setSelectedFolderId(folder.id);
+                          setCurrentView('folder');
+                          setShowArchivedFolders(false);
+                        }}
+                        className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                      >
+                        Open Folder
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {currentView === 'folder' && selectedFolderId && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-800">
+                {folders.find(f => f.id === selectedFolderId)?.name}
+              </h2>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowArchivedFiles(!showArchivedFiles)}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+                >
+                  View Archived ({getValidArchivedFiles().filter(f => f.folderId === selectedFolderId).length})
+                </button>
+                <button
+                  onClick={() => setShowFileForm(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Plus size={20} />
+                  New File
+                </button>
+              </div>
+            </div>
+
+            {showArchivedFiles && (
+              <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+                <h3 className="text-xl font-semibold text-gray-800 mb-4">
+                  Archived Files (Last 24 Hours)
+                </h3>
+                {getValidArchivedFiles().filter(f => f.folderId === selectedFolderId).length === 0 ? (
+                  <p className="text-gray-500 text-center">No archived files</p>
+                ) : (
+                  <div className="space-y-3">
+                    {getValidArchivedFiles()
+                      .filter(f => f.folderId === selectedFolderId)
+                      .map((file, index) => (
+                        <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-800">{file.name}</div>
+                            <div className="text-sm text-gray-600">{file.cards.length} card(s)</div>
+                          </div>
+                          <button
+                            onClick={() => recoverFile(getValidArchivedFiles().indexOf(file))}
+                            className="ml-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm"
+                          >
+                            Recover
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {showFileForm && (
+              <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+                <h3 className="text-xl font-semibold mb-4">Create New File</h3>
+                <input
+                  type="text"
+                  value={newFileName}
+                  onChange={(e) => setNewFileName(e.target.value)}
+                  placeholder="File name..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4"
+                />
+                <div className="flex gap-3">
+                  <button onClick={createFile} className="flex-1 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                    Create
+                  </button>
+                  <button onClick={() => { setShowFileForm(false); setNewFileName(''); }} className="flex-1 px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {folders.find(f => f.id === selectedFolderId)?.files.map(file => (
+                <div key={file.id} className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
+                  {renamingId === file.id && renamingType === 'file' ? (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        className="flex-1 px-3 py-1 border border-gray-300 rounded"
+                        autoFocus
+                      />
+                      <button onClick={saveRename} className="px-3 py-1 bg-green-500 text-white rounded">Save</button>
+                      <button onClick={() => setRenamingId(null)} className="px-3 py-1 bg-gray-300 rounded">Cancel</button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <File size={32} className="text-green-600" />
+                          <h3 className="text-xl font-semibold text-gray-800">{file.name}</h3>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => startRename(file.id, 'file', file.name)}
+                            className="p-2 text-gray-600 hover:bg-gray-100 rounded"
+                          >
+                            <Edit size={18} />
+                          </button>
+                          <button
+                            onClick={() => deleteFile(file.id)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-gray-600 mb-4">{file.cards.length} card(s)</p>
+                      <button
+                        onClick={() => {
+                          setSelectedFileId(file.id);
+                          setCurrentView('file');
+                          setCurrentIndex(0);
+                          setShowArchivedFiles(false);
+                        }}
+                        className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                      >
+                        Open File
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {currentView === 'file' && selectedFileId && !quizMode && !showTimePicker && (
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">
+              {folders.find(f => f.id === selectedFolderId)?.files.find(f => f.id === selectedFileId)?.name}
+            </h2>
+
+            <div className="text-center mb-8">
+              <button
+                onClick={() => setShowArchived(!showArchived)}
+                className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm"
+              >
+                {showArchived ? 'Hide' : 'View'} Archived Cards ({getValidArchivedCards().length})
+              </button>
+            </div>
+
+            {showArchived && (
+              <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">
+                  Archived Cards (Last 24 Hours)
+                </h2>
+                {getValidArchivedCards().length === 0 ? (
+                  <p className="text-gray-500 text-center">No archived cards</p>
+                ) : (
+                  <div className="space-y-3">
+                    {getValidArchivedCards().map((card, index) => (
+                      <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-800">{card.question}</div>
+                          <div className="text-sm text-gray-600">{card.answer}</div>
+                        </div>
+                        <button
+                          onClick={() => handleRecover(index)}
+                          className="ml-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm"
+                        >
+                          Recover
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {cards.length > 0 && (
+              <div className="mb-6">
+                <div className="text-center text-indigo-700 font-medium mb-4">
+                  Card {currentIndex + 1} of {cards.length}
+                </div>
+
+                <div
+                  onClick={handleFlip}
+                  className="relative bg-white rounded-xl shadow-lg p-8 min-h-64 flex items-center justify-center cursor-pointer transition-transform hover:scale-105"
+                >
+                  <div className="text-center">
+                    <div className="text-sm text-gray-500 mb-2">
+                      {isFlipped ? 'Answer' : 'Question'}
+                    </div>
+                    <div className="text-2xl font-medium text-gray-800">
+                      {isFlipped ? cards[currentIndex].answer : cards[currentIndex].question}
+                    </div>
+                    <div className="text-sm text-gray-400 mt-4">
+                      Click to flip
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center mt-6">
+                  <button
+                    onClick={handlePrevious}
+                    disabled={cards.length <= 1}
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronLeft size={20} />
+                    Previous
+                  </button>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={startEditCard}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                    >
+                      <Edit size={18} />
+                      Edit
+                    </button>
+
+                    <button
+                      onClick={handleDeleteCard}
+                      className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                    >
+                      <Trash2 size={18} />
+                      Delete
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={handleNext}
+                    disabled={cards.length <= 1}
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                    <ChevronRight size={20} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!showAddForm && !showEditForm && !showBulkImport && (
+              <div className="space-y-3">
+                <button
+                  onClick={showQuizTimePicker}
+                  disabled={cards.length === 0}
+                  className="w-full px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium text-lg"
+                >
+                  Quiz Me! 🧠
+                </button>
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium"
+                >
+                  <Plus size={20} />
+                  Add New Flashcard
+                </button>
+                <button
+                  onClick={() => setShowBulkImport(true)}
+                  className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
+                >
+                  <Plus size={20} />
+                  Add Many New Flashcards
+                </button>
+                <button
+                  onClick={handleDeleteAll}
+                  disabled={cards.length === 0}
+                  className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
+                >
+                  <Trash2 size={20} />
+                  Delete All Flashcards
+                </button>
+              </div>
+            )}
+
+            {showEditForm && (
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">
+                  Edit Flashcard
+                </h2>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Question
+                  </label>
+                  <textarea
+                    value={newQuestion}
+                    onChange={(e) => setNewQuestion(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    rows="3"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Answer
+                  </label>
+                  <textarea
+                    value={newAnswer}
+                    onChange={(e) => setNewAnswer(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    rows="3"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleEditCard}
+                    className="flex-1 px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowEditForm(false);
+                      setNewQuestion('');
+                      setNewAnswer('');
+                      setEditingCardId(null);
+                    }}
+                    className="flex-1 px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {showBulkImport && (
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">
+                  Add Many New Flashcards
+                </h2>
+                <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-gray-700 mb-2">
+                    <strong>Instructions:</strong> Enter your flashcards using this format:
+                  </p>
+                  <div className="bg-white p-3 rounded border border-blue-200 font-mono text-sm">
+                    Q: What is a browser?<br/>
+                    A: A program that lets you visit websites
+                  </div>
+                </div>
+                <div className="mb-4">
+                  <textarea
+                    value={bulkText}
+                    onChange={(e) => setBulkText(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                    rows="12"
+                    placeholder="Q: Your question&#10;A: Your answer"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleBulkImport}
+                    className="flex-1 px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
+                  >
+                    Add Flashcards
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowBulkImport(false);
+                      setBulkText('');
+                    }}
+                    className="flex-1 px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {showAddForm && (
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">
+                  Create New Flashcard
+                </h2>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Question
+                  </label>
+                  <textarea
+                    value={newQuestion}
+                    onChange={(e) => setNewQuestion(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    rows="3"
+                    placeholder="Enter your question..."
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Answer
+                  </label>
+                  <textarea
+                    value={newAnswer}
+                    onChange={(e) => setNewAnswer(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    rows="3"
+                    placeholder="Enter the answer..."
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleAddCard}
+                    className="flex-1 px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium"
+                  >
+                    Add Card
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowAddForm(false);
+                      setNewQuestion('');
+                      setNewAnswer('');
+                    }}
+                    className="flex-1 px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {showTimePicker && (
+          <div className="bg-white rounded-xl shadow-lg p-8 mb-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2 text-center">
+              Set Quiz Time
+            </h2>
+            <p className="text-gray-600 text-center mb-6">
+              How much time do you want for this quiz?
+            </p>
+            
+            <div className="flex justify-center items-center gap-4 mb-8">
+              <div className="flex flex-col items-center">
+                <select
+                  value={selectedHours}
+                  onChange={(e) => setSelectedHours(parseInt(e.target.value))}
+                  className="text-4xl font-bold text-indigo-600 bg-gray-50 border-2 border-indigo-200 rounded-lg px-4 py-3 cursor-pointer"
+                >
+                  {[...Array(24)].map((_, i) => (
+                    <option key={i} value={i}>{String(i).padStart(2, '0')}</option>
+                  ))}
+                </select>
+                <span className="text-sm text-gray-500 mt-2 font-medium">Hours</span>
+              </div>
+
+              <span className="text-4xl font-bold text-gray-400">:</span>
+
+              <div className="flex flex-col items-center">
+                <select
+                  value={selectedMinutes}
+                  onChange={(e) => setSelectedMinutes(parseInt(e.target.value))}
+                  className="text-4xl font-bold text-indigo-600 bg-gray-50 border-2 border-indigo-200 rounded-lg px-4 py-3 cursor-pointer"
+                >
+                  {[...Array(60)].map((_, i) => (
+                    <option key={i} value={i}>{String(i).padStart(2, '0')}</option>
+                  ))}
+                </select>
+                <span className="text-sm text-gray-500 mt-2 font-medium">Minutes</span>
+              </div>
+
+              <span className="text-4xl font-bold text-gray-400">:</span>
+
+              <div className="flex flex-col items-center">
+                <select
+                  value={selectedSeconds}
+                  onChange={(e) => setSelectedSeconds(parseInt(e.target.value))}
+                  className="text-4xl font-bold text-indigo-600 bg-gray-50 border-2 border-indigo-200 rounded-lg px-4 py-3 cursor-pointer"
+                >
+                  {[...Array(60)].map((_, i) => (
+                    <option key={i} value={i}>{String(i).padStart(2, '0')}</option>
+                  ))}
+                </select>
+                <span className="text-sm text-gray-500 mt-2 font-medium">Seconds</span>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={startQuiz}
+                disabled={selectedHours === 0 && selectedMinutes === 0 && selectedSeconds === 0}
+                className="flex-1 px-8 py-4 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium text-lg"
+              >
+                Start Quiz
+              </button>
+              <button
+                onClick={() => setShowTimePicker(false)}
+                className="flex-1 px-8 py-4 bg-gray-400 text-white rounded-lg hover:bg-gray-500 transition-colors font-medium text-lg"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {quizMode && quizComplete && (
+          <div className="bg-white rounded-xl shadow-lg p-8 mb-6 text-center">
+            <h2 className="text-3xl font-bold text-gray-800 mb-4">Quiz Complete! 🎉</h2>
+            <div className="text-6xl font-bold text-indigo-600 mb-4">
+              {quizScore.toFixed(1)}/{quizCards.length}
+            </div>
+            <div className="text-2xl text-gray-700 mb-6">
+              {Math.round((quizScore / quizCards.length) * 100)}% Correct
+            </div>
+            {(quizScore / quizCards.length) < 0.6 ? (
+              <div>
+                <p className="text-lg text-gray-600 mb-6">
+                  You scored below 60%. Keep practicing to improve! 💪
+                </p>
+                <div className="flex gap-3 justify-center">
+                  <button
+                    onClick={() => {
+                      setQuizComplete(false);
+                      setQuizMode(false);
+                      setShowTimePicker(true);
+                    }}
+                    className="px-8 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-lg"
+                  >
+                    Try Again
+                  </button>
+                  <button
+                    onClick={exitQuiz}
+                    className="px-8 py-3 bg-gray-400 text-white rounded-lg hover:bg-gray-500 transition-colors font-medium text-lg"
+                  >
+                    Exit
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <p className="text-lg text-green-600 mb-6 font-semibold">
+                  Excellent work! You passed! 🌟
+                </p>
+                <button
+                  onClick={exitQuiz}
+                  className="px-8 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-lg"
+                >
+                  Exit Quiz
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {quizMode && !quizComplete && (
+          <div className="mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <div className="text-indigo-700 font-medium">
+                Question {currentIndex + 1} of {quizCards.length}
+              </div>
+              <div className={`text-lg font-bold ${timeRemaining < 60 ? 'text-red-600' : 'text-indigo-700'}`}>
+                Time: {formatTime(timeRemaining)}
+              </div>
+              <div className="text-indigo-700 font-medium">
+                Score: {quizScore.toFixed(1)}/{quizCards.length}
+              </div>
+            </div>
+
+            <div className="flex gap-3 mb-4 justify-center">
+              <button
+                onClick={() => {
+                  setQuizMode(false);
+                  setQuizComplete(false);
+                  setShowTimePicker(true);
+                }}
+                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium"
+              >
+                Restart Quiz
+              </button>
+              <button
+                onClick={exitQuiz}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm font-medium"
+              >
+                Exit Quiz
+              </button>
+            </div>
+
+            <div
+              onClick={handleFlip}
+              className="relative bg-white rounded-xl shadow-lg p-8 min-h-64 flex items-center justify-center cursor-pointer transition-transform hover:scale-105"
+            >
+              <div className="text-center">
+                <div className="text-sm text-gray-500 mb-2">
+                  {isFlipped ? 'Answer' : 'Question'}
+                </div>
+                <div className="text-2xl font-medium text-gray-800">
+                  {isFlipped ? quizCards[currentIndex].answer : quizCards[currentIndex].question}
+                </div>
+                {!isFlipped && (
+                  <div className="text-sm text-gray-400 mt-4">
+                    Click to flip
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {isFlipped && (
+              <div className="flex gap-4 mt-6 justify-center">
+                <button
+                  onClick={() => handleQuizAnswer('wrong')}
+                  className="flex items-center gap-2 px-8 py-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-lg font-medium"
+                >
+                  <span className="text-2xl">👎</span>
+                  Wrong
+                </button>
+                <button
+                  onClick={() => handleQuizAnswer('partial')}
+                  className="flex items-center gap-2 px-8 py-4 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors text-lg font-medium"
+                >
+                  <span className="text-2xl">👌</span>
+                  Partial
+                </button>
+                <button
+                  onClick={() => handleQuizAnswer('full')}
+                  className="flex items-center gap-2 px-8 py-4 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-lg font-medium"
+                >
+                  <span className="text-2xl">👍</span>
+                  Correct
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
